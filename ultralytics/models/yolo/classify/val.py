@@ -62,6 +62,16 @@ class ClassificationValidator(BaseValidator):
     def finalize_metrics(self, *args, **kwargs):
         """Finalizes metrics of the model such as confusion_matrix and speed."""
         self.confusion_matrix.process_cls_preds(self.pred, self.targets)
+        
+        acctop1_matrix = self.confusion_matrix.matrix
+        acctop1_matrix_cls = self.confusion_matrix.matrix.sum(0)
+        cls_num = len(acctop1_matrix_cls)
+        acc1rate = [0]*cls_num
+        for i in range(cls_num):
+            acc1rate[i] = acctop1_matrix[i][i] / acctop1_matrix_cls[i]
+            class_mapping = {0: "dirty", 1: "normal"}
+            class_i = class_mapping.get(i, "Unknown")  # 使用 get 方法，避免未定义的类别
+            LOGGER.info((f"class {class_i}", acc1rate[i]))
         if self.args.plots:
             for normalize in True, False:
                 self.confusion_matrix.plot(
@@ -70,10 +80,6 @@ class ClassificationValidator(BaseValidator):
         self.metrics.speed = self.speed
         self.metrics.confusion_matrix = self.confusion_matrix
         self.metrics.save_dir = self.save_dir
-
-    def postprocess(self, preds):
-        """Preprocesses the classification predictions."""
-        return preds[0] if isinstance(preds, (list, tuple)) else preds
 
     def get_stats(self):
         """Returns a dictionary of metrics obtained by processing targets and predictions."""

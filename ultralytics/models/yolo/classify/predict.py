@@ -42,9 +42,17 @@ class ClassificationPredictor(BasePredictor):
             if is_legacy_transform:  # to handle legacy transforms
                 img = torch.stack([self.transforms(im) for im in img], dim=0)
             else:
-                img = torch.stack(
-                    [self.transforms(Image.fromarray(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))) for im in img], dim=0
-                )
+                # img = torch.stack(
+                #     [self.transforms(Image.fromarray(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))) for im in img], dim=0
+                # )
+                transformed_images = []
+                for im in img:
+                    rgb_image = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+                    pil_image = Image.fromarray(rgb_image)
+                    trans_image= self.transforms(pil_image)
+                    transformed_images.append(trans_image)
+                img = torch.stack(transformed_images, dim=0)
+                
         img = (img if isinstance(img, torch.Tensor) else torch.from_numpy(img)).to(self.model.device)
         return img.half() if self.model.fp16 else img.float()  # uint8 to fp16/32
 
@@ -53,8 +61,7 @@ class ClassificationPredictor(BasePredictor):
         if not isinstance(orig_imgs, list):  # input images are a torch.Tensor, not a list
             orig_imgs = ops.convert_torch2numpy_batch(orig_imgs)
 
-        preds = preds[0] if isinstance(preds, (list, tuple)) else preds
         return [
-            Results(orig_img, path=img_path, names=self.model.names, probs=pred)
+            Results(orig_img, path=img_path, names=self.model.names, probs=pred.softmax(0))
             for pred, orig_img, img_path in zip(preds, orig_imgs, self.batch[0])
         ]

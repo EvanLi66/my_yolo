@@ -1,0 +1,11 @@
+from ultralytics import YOLO
+
+# Load a model
+# model = YOLO("yolo11x-cls.yaml").load("/Users/carloslee/Desktop/yolo/pretrainweight/yolo11x-cls.pt")  # build a new model from YAML
+# model = YOLO("yolo11n-cls.pt")  # load a pretrained model (recommended for training)
+model = YOLO("yolov8n-cls.yaml")  # build from YAML and transfer weights
+
+# Train the model
+results = model.train(data="/Users/carloslee/Desktop/yolo/datasets/bevtrain/bevtest1920x1536", 
+                      epochs=100, 
+                      device='mps')

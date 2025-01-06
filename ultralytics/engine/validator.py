@@ -36,6 +36,10 @@ from ultralytics.utils.checks import check_imgsz
 from ultralytics.utils.ops import Profile
 from ultralytics.utils.torch_utils import de_parallel, select_device, smart_inference_mode
 
+import os
+import matplotlib.pyplot as plt
+from torchvision import transforms
+
 
 class BaseValidator:
     """
@@ -120,7 +124,7 @@ class BaseValidator:
             self.args.plots &= trainer.stopper.possible_stop or (trainer.epoch == trainer.epochs - 1)
             model.eval()
         else:
-            if str(self.args.model).endswith(".yaml") and model is None:
+            if str(self.args.model).endswith(".yaml"):
                 LOGGER.warning("WARNING ⚠️ validating an untrained model YAML will result in 0 mAP.")
             callbacks.add_integration_callbacks(self)
             model = AutoBackend(
@@ -178,7 +182,97 @@ class BaseValidator:
             # Inference
             with dt[1]:
                 preds = model(batch["img"], augment=augment)
+            # Batch1_vislualize
+            preds_conf = torch.softmax(preds, dim=1)  # confidence
+            batch_sz = preds_conf.shape[0]
+            if batch_sz == 1:
+                
+                img_path = self.dataloader.dataset.samples[batch_i][0]
+                img_name = Path(img_path).stem
+                # 设定相对路径的文件夹名
+                relative_folder_error_path = "output/error_images/all_imgs"  # 这里是保存错误图像的文件夹，使用相对路径
+                relative_folder_right_path = "output/right_images/all_imgs"
+                
+                error_under90_path = "output/error_images/under90_images"
+                error_under80_path = "output/error_images/under80_images"
+                error_under70_path = "output/error_images/under70_images"
+                error_under60_path = "output/error_images/under60_images"
+                
+                right_under90_path = "output/right_images/under90_images"
+                right_under80_path = "output/right_images/under80_images"
+                right_under70_path = "output/right_images/under70_images"
+                right_under60_path = "output/right_images/under60_images"
+                
 
+                # 创建文件夹（如果不存在）
+                os.makedirs(relative_folder_error_path, exist_ok=True)
+                os.makedirs(relative_folder_right_path, exist_ok=True)
+                
+                os.makedirs(error_under90_path, exist_ok=True)
+                os.makedirs(error_under80_path, exist_ok=True)
+                os.makedirs(error_under70_path, exist_ok=True)
+                os.makedirs(error_under60_path, exist_ok=True)
+                
+                os.makedirs(right_under90_path, exist_ok=True)
+                os.makedirs(right_under80_path, exist_ok=True)
+                os.makedirs(right_under70_path, exist_ok=True)
+                os.makedirs(right_under60_path, exist_ok=True)
+                
+                preds_prob = torch.max(preds_conf, dim=1).values  # probability
+                preds_cls = torch.argmax(preds_conf, dim=1).item()  # class
+                
+                true_cls = batch["cls"][0].item()
+                class_mapping = {0: "dirty", 1: "normal"}
+                
+                pred_class_label = class_mapping.get(preds_cls, "Unknown")  # 使用 get 方法，避免未定义的类别
+                true_class_label = class_mapping.get(true_cls, "Unknown")
+                
+            
+                img_vis = batch["img"][0].cpu().numpy()
+                img_vis = img_vis.transpose((1, 2, 0))  # 转换为 [H, W, C]
+                img_vis = np.clip(img_vis, 0, 1)  # 保证图像的像素在 [0, 1] 范围内
+                
+                plt.imshow(img_vis)
+                plt.axis("off")
+                label = f"Pred:{pred_class_label} Prob: {preds_prob.item()}\nTrue:{true_class_label}"
+                plt.text(10, 10, label, color='white', fontsize=12, bbox=dict(facecolor='black', alpha=0.5))
+                error_image_path = os.path.join(relative_folder_error_path, f"{img_name}.png")
+                right_image_path = os.path.join(relative_folder_right_path, f"{img_name}.png")
+                
+                error_under90_path = os.path.join(error_under90_path, f"{img_name}.png")
+                error_under80_path = os.path.join(error_under80_path, f"{img_name}.png")
+                error_under70_path = os.path.join(error_under70_path, f"{img_name}.png")
+                error_under60_path = os.path.join(error_under60_path, f"{img_name}.png")
+                
+                right_under90_path = os.path.join(right_under90_path, f"{img_name}.png")
+                right_under80_path = os.path.join(right_under80_path, f"{img_name}.png")
+                right_under70_path = os.path.join(right_under70_path, f"{img_name}.png")
+                right_under60_path = os.path.join(right_under60_path, f"{img_name}.png")
+                
+                # LOGGER.info(f"Saving error image to {error_image_path}")
+                
+                if preds_cls != true_cls :
+                    plt.savefig(error_image_path)  # 保存图像到指定路径
+                    if preds_prob.item() < 0.6:
+                        plt.savefig(error_under60_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.7:
+                        plt.savefig(error_under70_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.8:
+                        plt.savefig(error_under80_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.9:
+                        plt.savefig(error_under90_path)  # 保存图像到指定路径
+                else:
+                    plt.savefig(right_image_path)  # 保存图像到指定路径
+                    if preds_prob.item() < 0.6:
+                        plt.savefig(right_under60_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.7:
+                        plt.savefig(right_under70_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.8:
+                        plt.savefig(right_under80_path)  # 保存图像到指定路径
+                    elif preds_prob.item() < 0.9:
+                        plt.savefig(right_under90_path)  # 保存图像到指定路径
+                    
+                plt.close()  # 关闭当前图像 
             # Loss
             with dt[2]:
                 if self.training:
@@ -245,7 +339,7 @@ class BaseValidator:
 
                 cost_matrix = iou * (iou >= threshold)
                 if cost_matrix.any():
-                    labels_idx, detections_idx = scipy.optimize.linear_sum_assignment(cost_matrix)
+                    labels_idx, detections_idx = scipy.optimize.linear_sum_assignment(cost_matrix, maximize=True)
                     valid = cost_matrix[labels_idx, detections_idx] > 0
                     if valid.any():
                         correct[detections_idx[valid], i] = True

@@ -34,6 +34,7 @@ import platform
 import re
 import threading
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 import cv2
 import numpy as np
@@ -155,7 +156,7 @@ class BasePredictor:
         same_shapes = len({x.shape for x in im}) == 1
         letterbox = LetterBox(
             self.imgsz,
-            auto=same_shapes and (self.model.pt or (getattr(self.model, "dynamic", False) and not self.model.imx)),
+            auto=same_shapes and (self.model.pt or getattr(self.model, "dynamic", False)),
             stride=self.model.stride,
         )
         return [letterbox(image=x) for x in im]
@@ -253,7 +254,17 @@ class BasePredictor:
                 # Preprocess
                 with profilers[0]:
                     im = self.preprocess(im0s)
-
+                # # Visualize preprocessed image
+                # im4vis = im.permute(0, 2, 3, 1).contiguous().clone()
+                # im4vis_height = im4vis.shape[1]
+                # im4vis_width = im4vis.shape[2]
+                
+                # fig,axes = plt.subplots(2, 2, figsize=(im4vis_width/100, im4vis_height/100))
+                # for i,ax in enumerate(axes.flat):
+                #     ax.imshow(im4vis[i].cpu().numpy())
+                #     ax.axis('off')
+                # plt.savefig('preprocessed.png')
+                # plt.show()
                 # Inference
                 with profilers[1]:
                     preds = self.inference(im, *args, **kwargs)

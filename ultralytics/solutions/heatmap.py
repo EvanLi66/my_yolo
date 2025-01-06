@@ -27,8 +27,12 @@ class Heatmap(ObjectCounter):
     Examples:
         >>> from ultralytics.solutions import Heatmap
         >>> heatmap = Heatmap(model="yolov8n.pt", colormap=cv2.COLORMAP_JET)
-        >>> frame = cv2.imread("frame.jpg")
-        >>> processed_frame = heatmap.generate_heatmap(frame)
+        >>> results = heatmap("path/to/video.mp4")
+        >>> for result in results:
+        ...     print(result.speed)  # Print inference speed
+        ...     cv2.imshow("Heatmap", result.plot())
+        ...     if cv2.waitKey(1) & 0xFF == ord("q"):
+        ...         break
     """
 
     def __init__(self, **kwargs):
@@ -41,7 +45,6 @@ class Heatmap(ObjectCounter):
 
         # store colormap
         self.colormap = cv2.COLORMAP_PARULA if self.CFG["colormap"] is None else self.CFG["colormap"]
-        self.heatmap = None
 
     def heatmap_effect(self, box):
         """

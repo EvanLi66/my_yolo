@@ -25,6 +25,8 @@ from .augment import (
     classify_augmentations,
     classify_transforms,
     v8_transforms,
+    classify_transforms_bev_trainning,
+    classify_transforms_bev,
 )
 from .base import BaseDataset
 from .utils import (
@@ -68,7 +70,7 @@ class YOLODataset(BaseDataset):
         Cache dataset labels, check images and read shapes.
 
         Args:
-            path (Path): Path where to save the cache file. Default is Path("./labels.cache").
+            path (Path): Path where to save the cache file. Default is Path('./labels.cache').
 
         Returns:
             (dict): labels.
@@ -218,10 +220,8 @@ class YOLODataset(BaseDataset):
         # NOTE: do NOT resample oriented boxes
         segment_resamples = 100 if self.use_obb else 1000
         if len(segments) > 0:
-            # make sure segments interpolate correctly if original length is greater than segment_resamples
-            max_len = max(len(s) for s in segments)
-            segment_resamples = (max_len + 1) if segment_resamples < max_len else segment_resamples
-            # list[np.array(segment_resamples, 2)] * num_samples
+            # list[np.array(1000, 2)] * num_samples
+            # (N, 1000, 2)
             segments = np.stack(resample_segments(segments, n=segment_resamples), axis=0)
         else:
             segments = np.zeros((0, segment_resamples, 2), dtype=np.float32)
@@ -323,8 +323,7 @@ class GroundingDataset(YOLODataset):
                 if box[2] <= 0 or box[3] <= 0:
                     continue
 
-                caption = img["caption"]
-                cat_name = " ".join([caption[t[0] : t[1]] for t in ann["tokens_positive"]])
+                cat_name = " ".join([img["caption"][t[0] : t[1]] for t in ann["tokens_positive"]])
                 if cat_name not in cat2id:
                     cat2id[cat_name] = len(cat2id)
                     texts.append([cat_name])
@@ -444,8 +443,8 @@ class ClassificationDataset:
         self.samples = [list(x) + [Path(x[0]).with_suffix(".npy"), None] for x in self.samples]  # file, index, npy, im
         scale = (1.0 - args.scale, 1.0)  # (0.08, 1.0)
         self.torch_transforms = (
-            classify_augmentations(
-                size=args.imgsz,
+            classify_transforms_bev_trainning(
+                height=args.imgsz,
                 scale=scale,
                 hflip=args.fliplr,
                 vflip=args.flipud,
@@ -456,7 +455,7 @@ class ClassificationDataset:
                 hsv_v=args.hsv_v,
             )
             if augment
-            else classify_transforms(size=args.imgsz, crop_fraction=args.crop_fraction)
+            else classify_transforms_bev(height=args.imgsz, crop_fraction=args.crop_fraction)
         )
 
     def __getitem__(self, i):
@@ -473,7 +472,23 @@ class ClassificationDataset:
             im = cv2.imread(f)  # BGR
         # Convert NumPy array to PIL image
         im = Image.fromarray(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
-        sample = self.torch_transforms(im)
+        width, height = im.size
+        if self.root.name == "train":
+            dynamic_transforms = classify_transforms_bev_trainning(height=height, 
+                                                                   scale=(0.5, 1.0),
+                                                                   hflip=0.5,
+                                                                   vflip=0.0,
+                                                                   erasing=0.4,
+                                                                   auto_augment='randaugment',
+                                                                   hsv_h=0.015,
+                                                                   hsv_s=0.7,
+                                                                   hsv_v=0.7,
+                                                                   )
+        else :
+            dynamic_transforms = classify_transforms_bev(height=height, crop_fraction=1.0)
+            self.torch_transforms = dynamic_transforms
+        sample = dynamic_transforms(im)
+        # sample = self.torch_transforms(im)
         return {"img": sample, "cls": j}
 
     def __len__(self) -> int:

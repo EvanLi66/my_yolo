@@ -441,8 +441,7 @@ class BaseMixTransform:
         """
         raise NotImplementedError
 
-    @staticmethod
-    def _update_label_text(labels):
+    def _update_label_text(self, labels):
         """
         Updates label text and class IDs for mixed labels in image augmentation.
 
@@ -642,7 +641,7 @@ class Mosaic(BaseMixTransform):
                 c = s - w, s + h0 - h, s, s + h0
 
             padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coordinates
+            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
 
             img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img3[ymin:ymax, xmin:xmax]
             # hp, wp = h, w  # height, width previous for next iteration
@@ -771,7 +770,7 @@ class Mosaic(BaseMixTransform):
                 c = s - w, s + h0 - hp - h, s, s + h0 - hp
 
             padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coordinates
+            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
 
             # Image
             img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img9[ymin:ymax, xmin:xmax]
@@ -1260,8 +1259,7 @@ class RandomPerspective:
         labels["resized_shape"] = img.shape[:2]
         return labels
 
-    @staticmethod
-    def box_candidates(box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):
+    def box_candidates(self, box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):
         """
         Compute candidate boxes for further processing based on size and aspect ratio criteria.
 
@@ -1283,7 +1281,7 @@ class RandomPerspective:
             eps (float): Small epsilon value to prevent division by zero.
 
         Returns:
-            (numpy.ndarray): Boolean array of shape (n) indicating which boxes are candidates.
+            (numpy.ndarray): Boolean array of shape (n,) indicating which boxes are candidates.
                 True values correspond to boxes that meet all criteria.
 
         Examples:
@@ -1320,7 +1318,7 @@ class RandomHSV:
         >>> augmenter = RandomHSV(hgain=0.5, sgain=0.5, vgain=0.5)
         >>> image = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
         >>> labels = {"img": image}
-        >>> augmenter(labels)
+        >>> augmented_labels = augmenter(labels)
         >>> augmented_image = augmented_labels["img"]
     """
 
@@ -1337,7 +1335,7 @@ class RandomHSV:
 
         Examples:
             >>> hsv_aug = RandomHSV(hgain=0.5, sgain=0.5, vgain=0.5)
-            >>> hsv_aug(image)
+            >>> augmented_image = hsv_aug(image)
         """
         self.hgain = hgain
         self.sgain = sgain
@@ -1419,7 +1417,7 @@ class RandomFlip:
 
         Examples:
             >>> flip = RandomFlip(p=0.5, direction="horizontal")
-            >>> flip_with_idx = RandomFlip(p=0.7, direction="vertical", flip_idx=[1, 0, 3, 2, 5, 4])
+            >>> flip = RandomFlip(p=0.7, direction="vertical", flip_idx=[1, 0, 3, 2, 5, 4])
         """
         assert direction in {"horizontal", "vertical"}, f"Support direction `horizontal` or `vertical`, got {direction}"
         assert 0 <= p <= 1.0, f"The probability should be in range [0, 1], but got {p}."
@@ -1600,8 +1598,7 @@ class LetterBox:
         else:
             return img
 
-    @staticmethod
-    def _update_labels(labels, ratio, padw, padh):
+    def _update_labels(self, labels, ratio, padw, padh):
         """
         Updates labels after applying letterboxing to an image.
 
@@ -2022,7 +2019,7 @@ class Format:
         Returns:
             (Dict): A dictionary with formatted data, including:
                 - 'img': Formatted image tensor.
-                - 'cls': Class label's tensor.
+                - 'cls': Class labels tensor.
                 - 'bboxes': Bounding boxes tensor in the specified format.
                 - 'masks': Instance masks tensor (if return_mask is True).
                 - 'keypoints': Keypoints tensor (if return_keypoint is True).
@@ -2395,6 +2392,174 @@ def classify_transforms(
     )
     return T.Compose(tfl)
 
+def classify_transforms_bev(
+                            height=1080, 
+                            mean=DEFAULT_MEAN, 
+                            std=DEFAULT_STD,
+                            interpolation="BILINEAR",
+                            crop_fraction: float = DEFAULT_CROP_FRACTION,
+):
+    
+    import torchvision.transforms as T 
+    if height == 1080 or height == 2160:
+        if height == 1080:
+            target_height = 1152
+        else:
+            target_height = 2304
+            
+        padding_top_bottom = (target_height - height) // 2
+        padding_left_right = 0
+        tfl =[T.Pad((padding_left_right, padding_top_bottom, padding_left_right, padding_top_bottom), fill=0)]
+        tfl.extend(
+            [
+                T.Resize((384, 640)),  # 注意顺序是 (height, width)
+                T.ToTensor(),
+                T.Normalize(mean=torch.tensor(mean), std=torch.tensor(std)),
+            ]
+        )
+    else:
+        # height == 1536 
+        tfl = [T.Resize((512,640)),
+               T.ToTensor(),
+               T.Normalize(mean=torch.tensor(mean), std=torch.tensor(std)),
+               ]
+        
+    return T.Compose(tfl)
+
+def classify_transforms_bev_trainning(
+    height=224,
+    mean=DEFAULT_MEAN,
+    std=DEFAULT_STD,
+    scale=None,
+    ratio=None,
+    hflip=0.5,
+    vflip=0.0,
+    auto_augment=None,
+    hsv_h=0.015,  # image HSV-Hue augmentation (fraction)
+    hsv_s=0.4,  # image HSV-Saturation augmentation (fraction)
+    hsv_v=0.4,  # image HSV-Value augmentation (fraction)
+    force_color_jitter=False,
+    erasing=0.0,
+    interpolation="BILINEAR",
+    ):
+    
+    scale = tuple(scale or (0.08, 1.0))  # default imagenet scale range
+    ratio = tuple(ratio or (3.0 / 4.0, 4.0 / 3.0))  # default imagenet ratio range
+    import torchvision.transforms as T 
+    
+    interpolation = getattr(T.InterpolationMode, interpolation)
+    primary_tfl = []
+    secondary_tfl = []
+    final_tfl = []
+
+    if height == 1080 or height == 2160:
+        if height == 1080:
+            target_height = 1152
+        else:
+            target_height = 2304
+            
+        padding_top_bottom = (target_height - height) // 2
+        padding_left_right = 0
+        primary_tfl =[T.Pad((padding_left_right, padding_top_bottom, padding_left_right, padding_top_bottom), fill=0)]
+        primary_tfl.append(
+                T.Resize((384, 640)),  # 注意顺序是 (height, width)
+        )
+        if hflip > 0.0:
+            primary_tfl.append(T.RandomHorizontalFlip(p=hflip))
+        if vflip > 0.0:
+            primary_tfl.append(T.RandomVerticalFlip(p=vflip))
+        
+        disable_color_jitter = False
+        if auto_augment:
+            assert isinstance(auto_augment, str), f"Provided argument should be string, but got type {type(auto_augment)}"
+            # color jitter is typically disabled if AA/RA on,
+            # this allows override without breaking old hparm cfgs
+            disable_color_jitter = not force_color_jitter
+
+            if auto_augment == "randaugment":
+                if TORCHVISION_0_11:
+                    secondary_tfl.append(T.RandAugment(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=randaugment" requires torchvision >= 0.11.0. Disabling it.')
+
+            elif auto_augment == "augmix":
+                if TORCHVISION_0_13:
+                    secondary_tfl.append(T.AugMix(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=augmix" requires torchvision >= 0.13.0. Disabling it.')
+
+            elif auto_augment == "autoaugment":
+                if TORCHVISION_0_10:
+                    secondary_tfl.append(T.AutoAugment(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=autoaugment" requires torchvision >= 0.10.0. Disabling it.')
+
+            else:
+                raise ValueError(
+                    f'Invalid auto_augment policy: {auto_augment}. Should be one of "randaugment", '
+                    f'"augmix", "autoaugment" or None'
+                )
+
+        # if not disable_color_jitter:
+        if True :
+            secondary_tfl.append(T.ColorJitter(brightness=hsv_v, contrast=hsv_v, saturation=hsv_s, hue=hsv_h))
+
+        final_tfl = [
+            T.ToTensor(),
+            T.Normalize(mean=torch.tensor(mean), std=torch.tensor(std)),
+            # T.RandomErasing(p=erasing, inplace=True),
+        ]
+        
+    else:
+        # height == 1536 
+        primary_tfl = [T.Resize((512,640))]
+        if hflip > 0.0:
+            primary_tfl.append(T.RandomHorizontalFlip(p=hflip))
+        if vflip > 0.0:
+            primary_tfl.append(T.RandomVerticalFlip(p=vflip))
+        
+        disable_color_jitter = False
+        if auto_augment:
+            assert isinstance(auto_augment, str), f"Provided argument should be string, but got type {type(auto_augment)}"
+            # color jitter is typically disabled if AA/RA on,
+            # this allows override without breaking old hparm cfgs
+            disable_color_jitter = not force_color_jitter
+
+            if auto_augment == "randaugment":
+                if TORCHVISION_0_11:
+                    secondary_tfl.append(T.RandAugment(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=randaugment" requires torchvision >= 0.11.0. Disabling it.')
+
+            elif auto_augment == "augmix":
+                if TORCHVISION_0_13:
+                    secondary_tfl.append(T.AugMix(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=augmix" requires torchvision >= 0.13.0. Disabling it.')
+
+            elif auto_augment == "autoaugment":
+                if TORCHVISION_0_10:
+                    secondary_tfl.append(T.AutoAugment(interpolation=interpolation))
+                else:
+                    LOGGER.warning('"auto_augment=autoaugment" requires torchvision >= 0.10.0. Disabling it.')
+
+            else:
+                raise ValueError(
+                    f'Invalid auto_augment policy: {auto_augment}. Should be one of "randaugment", '
+                    f'"augmix", "autoaugment" or None'
+                )
+
+        # if not disable_color_jitter:
+        if True :
+            secondary_tfl.append(T.ColorJitter(brightness=hsv_v, contrast=hsv_v, saturation=hsv_s, hue=hsv_h))
+
+        final_tfl = [
+            T.ToTensor(),
+            T.Normalize(mean=torch.tensor(mean), std=torch.tensor(std)),
+            # T.RandomErasing(p=erasing, inplace=True),
+        ]
+        
+    return  T.Compose(primary_tfl + secondary_tfl + final_tfl)
 
 # Classification training augmentations --------------------------------------------------------------------------------
 def classify_augmentations(

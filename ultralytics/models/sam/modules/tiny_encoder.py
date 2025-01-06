@@ -955,8 +955,7 @@ class TinyViT(nn.Module):
 
         self.apply(_check_lr_scale)
 
-    @staticmethod
-    def _init_weights(m):
+    def _init_weights(self, m):
         """Initializes weights for linear and normalization layers in the TinyViT model."""
         if isinstance(m, nn.Linear):
             # NOTE: This initialization is needed only for training.
