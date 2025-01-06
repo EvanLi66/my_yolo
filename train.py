@@ -7,5 +7,6 @@ model = YOLO("yolov8n-cls.yaml")  # build from YAML and transfer weights
 
 # Train the model
 results = model.train(data="/Users/carloslee/Desktop/yolo/datasets/bevtrain/bevtest1920x1536", 
-                      epochs=100, 
+                      epochs=2, 
                       device='mps')
+results

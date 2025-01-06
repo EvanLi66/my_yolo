@@ -298,6 +298,46 @@ class Classify(nn.Module):
         x = self.linear(self.drop(self.pool(self.conv(x)).flatten(1)))
         return x
 
+class MultiTaskClassify(nn.Module):
+    """YOLO multi-task classification head, supporting multiple independent classification tasks."""
+
+    def __init__(self, c1, *tasks, k=1, s=1, p=None, g=1, dropout=0.0):
+        """
+        Initializes the YOLO multi-task classification head.
+
+        Args:
+            c1 (int): Input channels.
+            *tasks (int): Number of classes for each task.
+            k (int): Kernel size for the convolutional layer.
+            s (int): Stride for the convolutional layer.
+            p (int or None): Padding for the convolutional layer.
+            g (int): Groups for the convolutional layer.
+            dropout (float): Dropout probability.
+        """
+        super().__init__()
+        c_ = 1280  # Default channel size for intermediate feature transformation.
+        self.conv = Conv(c1, c_, k, s, p, g)  # Convolution layer
+        self.pool = nn.AdaptiveAvgPool2d(1)  # Global pooling
+        self.drop = nn.Dropout(p=dropout, inplace=True)
+
+        # Create separate linear layers for each task
+        self.task_heads = nn.ModuleList([nn.Linear(c_, t) for t in tasks])
+
+    def forward(self, x):
+        """
+        Performs a forward pass on the input tensor and predicts multiple task outputs.
+
+        Args:
+            x (Tensor): Input tensor with shape (batch_size, channels, height, width).
+
+        Returns:
+            List[Tensor]: A list of tensors where each tensor corresponds to a task's predictions.
+        """
+        if isinstance(x, list):
+            x = torch.cat(x, 1)
+        x = self.pool(self.conv(x))  # Convolution -> Global Pooling
+        x = self.drop(x).flatten(1)  # Dropout and flatten
+        return [head(x) for head in self.task_heads]  # Independent predictions for each task
 
 class WorldDetect(Detect):
     """Head for integrating YOLO detection models with semantic understanding from text embeddings."""
