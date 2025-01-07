@@ -604,7 +604,13 @@ class v8ClassificationLoss:
 
     def __call__(self, preds, batch):
         """Compute the classification loss between predictions and true labels."""
-        loss = F.cross_entropy(preds, batch["cls"], reduction="mean")
+        # loss = F.cross_entropy(preds, batch["cls"], reduction="mean")
+        # print(f"preds[0].shape: {preds[0].shape}, batch['cls'][0].shape: {batch['cls'][0].shape}")
+        loss1 = F.cross_entropy(preds[0], batch["cls"][0], reduction="mean")
+        loss2 = F.cross_entropy(preds[1], batch["cls"][1], reduction="mean")
+        loss3 = F.cross_entropy(preds[2], batch["cls"][2], reduction="mean")
+        # 总损失
+        loss = loss1 + loss2 + loss3
         loss_items = loss.detach()
         return loss, loss_items
 

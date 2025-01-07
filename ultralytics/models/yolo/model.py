@@ -32,6 +32,12 @@ class YOLO(Model):
                 "validator": yolo.classify.ClassificationValidator,
                 "predictor": yolo.classify.ClassificationPredictor,
             },
+            "multitaskclassify": {
+                "model": ClassificationModel,
+                "trainer": yolo.classify.ClassificationTrainer,
+                "validator": yolo.classify.ClassificationValidator,
+                "predictor": yolo.classify.ClassificationPredictor,
+            },
             "detect": {
                 "model": DetectionModel,
                 "trainer": yolo.detect.DetectionTrainer,

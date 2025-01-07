@@ -37,6 +37,7 @@ from ultralytics.nn.modules import (
     CBFuse,
     CBLinear,
     Classify,
+    MultiTaskClassify,
     Concat,
     Conv,
     Conv2,
@@ -963,6 +964,17 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
+        if m is MultiTaskClassify: 
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            if m is C2fAttn:
+                args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)  # embed channels
+                args[2] = int(
+                    max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2]
+                )  # num heads
+
+            args = [c1,[2,2,5]]
         if m in {
             Classify,
             Conv,
@@ -1126,8 +1138,11 @@ def guess_model_task(model):
     def cfg2task(cfg):
         """Guess from YAML dictionary."""
         m = cfg["head"][-1][-2].lower()  # output module name
-        if m in {"classify", "classifier", "cls", "fc"}:
-            return "classify"
+        if m in {"classify", "classifier", "cls", "fc","multitaskclassify"}:
+            if m == "multitaskclassify":
+                return "multitaskclassify"
+            else:
+                return "classify"
         if "detect" in m:
             return "detect"
         if m == "segment":

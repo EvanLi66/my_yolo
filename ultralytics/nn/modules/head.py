@@ -15,7 +15,7 @@ from .conv import Conv, DWConv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect"
+__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect","MultiTaskClassify"
 
 
 class Detect(nn.Module):
@@ -321,7 +321,7 @@ class MultiTaskClassify(nn.Module):
         self.drop = nn.Dropout(p=dropout, inplace=True)
 
         # Create separate linear layers for each task
-        self.task_heads = nn.ModuleList([nn.Linear(c_, t) for t in tasks])
+        self.task_heads = nn.ModuleList([nn.Linear(c_, t) for t in list(tasks[0])])
 
     def forward(self, x):
         """
